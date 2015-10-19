@@ -13,6 +13,7 @@ static char first[100] = {0};
 static char second[100] = {0};
 static char sign[5] = {0};
 static int major = 91;
+static short times = 0;
 
 static int     dev_open(struct inode *, struct file *);
 static int     dev_release(struct inode *, struct file *);
@@ -128,23 +129,35 @@ static int dev_release(struct inode *inodep, struct file *filep)
 
 static ssize_t dev_write_first(struct file *filep, const char *buffer, size_t len, loff_t *offset)
 {
-   sprintf(first, "%s", buffer, len);   // appending received string with its length
-   printk(KERN_INFO "First: Received %d characters from the user.\n", len);
-   return len;
+   short count = 0;
+	memset(first, 0, 100);
+	while (len > 0) {
+		first[count] = buffer[count++];
+		len--;
+	}
+	return count;
 }
 
 static ssize_t dev_write_second(struct file *filep, const char *buffer, size_t len, loff_t *offset)
 {
-   sprintf(second, "%s", buffer, len);   // appending received string with its length
-   printk(KERN_INFO "Second: Received %d characters from the user.\n", len);
-   return len;
+   short count = 0;
+	memset(second, 0, 100);
+	while (len > 0) {
+		second[count] = buffer[count++];
+		len--;
+	}
+	return count;
 }
 
 static ssize_t dev_write_sign(struct file *filep, const char *buffer, size_t len, loff_t *offset)
 {
-   sprintf(sign, "%s", buffer, len);   // appending received string with its length
-   printk(KERN_INFO "Sign: Received %d characters from the user.\n", len);
-   return len;
+   short count = 0;
+	memset(sign, 0, 5);
+	while (len > 0) {
+		sign[count] = buffer[count++];
+		len--;
+	}
+	return count;
 }
 
 static ssize_t dev_read_result(struct file *filep, char *buffer, size_t len, loff_t *offset)
@@ -152,47 +165,50 @@ static ssize_t dev_read_result(struct file *filep, char *buffer, size_t len, lof
 	char result[100] = {0};
 	long first_number;
 	long second_number;
-	int error_count = 0;
+	if(times != 0) {
+		return 0;
+	}
 	if(kstrtol(first, 10, &first_number) == 0) {
-		printk(KERN_ALERT "Result: first number converted.\n");
+		printk(KERN_INFO "Result: first number converted.\n");
+	}
+	else {
+		printk(KERN_INFO "Result: first number failed to be converted.\n");
 	}
 	if(kstrtol(second, 10, &second_number) == 0) {
-		printk(KERN_ALERT "Result: second number converted.\n");
+		printk(KERN_INFO "Result: second number converted.\n");
+	}
+	else {
+		printk(KERN_INFO "Result: second number failed to be converted.\n");
 	}
 
-	if(strcmp((const char*)sign, "+") == 0) {
+	if(sign[0] == '+') {
 		long result_number = first_number + second_number;
-		sprintf(result, "%d", result_number, sizeof(result_number));
+		sprintf(result, "%d\n", (int)result_number);
 	}
-	else if(strcmp((const char*)sign, "-") == 0) {
+	else if(sign[0] == '-') {
 		long result_number = first_number - second_number;
-		sprintf(result, "%d", result_number, sizeof(result_number));
+		sprintf(result, "%d\n", (int)result_number);
 	}
-	else if(strcmp((const char*)sign, "*") == 0) {
+	else if(sign[0] == '*') {
 		long result_number = first_number * second_number;
-		sprintf(result, "%d", result_number, sizeof(result_number));
+		sprintf(result, "%d\n", (int)result_number);
 	}
-	else if(strcmp((const char*)sign, "/") == 0) {
+	else if(sign[0] == '/') {
 		if(second_number == 0) {
-			sprintf(result, "%s", "Infinity", 8);
+			sprintf(result, "%s\n", "Infinity");
 		}
 		else {
-			long result_number = first_number + second_number;
-			sprintf(result, "%d", result_number, sizeof(result_number));
+			long result_number = first_number / second_number;
+			sprintf(result, "%d\n", (int)result_number);
 		}
 	}
+	else {
+		printk(KERN_INFO "Failed to parse the sign %s.\n", sign);
+	}
 
-   // copy_to_user has the format ( * to, *from, size) and returns 0 on success
-   error_count = copy_to_user(buffer, result, strlen(result));
- 
-   if (error_count == 0){            // if true then have success
-      printk(KERN_INFO "Result: Sent %d characters to the user.\n", strlen(result));
-      return 0;  // clear the position to the start and return 0
-   }
-   else {
-      printk(KERN_INFO "Result: Failed to send %d characters to the user.\n", error_count);
-      return -EFAULT;              // Failed -- return a bad address message (i.e. -14)
-   }
+      times++;
+    copy_to_user(buffer, result, strlen(result));
+    return strlen(result);
 }
 
 static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset)
